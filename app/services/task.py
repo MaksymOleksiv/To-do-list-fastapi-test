@@ -1,4 +1,3 @@
-from celery import current_task
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.task import (
@@ -7,8 +6,9 @@ from app.repositories.task import (
     create_task,
     update_task,
     delete_task,
+    get_task_history,
 )
-from app.schemas.task import TaskResponse, TaskCreate, TaskUpdate
+from app.schemas.task import TaskResponse, TaskCreate, TaskUpdate, TaskHistoryResponse
 from app.core.config import StatusEnum
 from app.services.email import send_email_task
 from app.core.config import settings
@@ -44,12 +44,16 @@ async def update_existing_task(
     db_session: AsyncSession, task_id: int, task_data: TaskUpdate
 ) -> TaskResponse:
     if not (task := await get_task_by_id(db_session, task_id)):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
-    if (task_data.status == StatusEnum.completed) and (task.status != StatusEnum.completed):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
+        )
+    if (task_data.status == StatusEnum.completed) and (
+        task.status != StatusEnum.completed
+    ):
         send_email_task.delay(
             subject=f"✅ Task completed: {task.title}",
             email_to=settings.ADMIN_EMAIL,
-            body=f"<h1>Congratulations!</h1><p>The task <b>{task.title}</b> has been successfully marked as completed.</p>"
+            body=f"<h1>Congratulations!</h1><p>The task <b>{task.title}</b> has been successfully marked as completed.</p>",
         )
     return TaskResponse.model_validate(
         await update_task(db_session, task, task_data.model_dump())
@@ -61,3 +65,16 @@ async def delete_existing_task(db_session: AsyncSession, task_id: int) -> None:
         await delete_task(db_session, task)
         return
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+
+
+async def get_task_history_service(
+    db_session: AsyncSession, task_id: int
+) -> list[TaskHistoryResponse]:
+    if not await get_task_by_id(db_session, task_id):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
+        )
+    return [
+        TaskHistoryResponse.model_validate(h)
+        for h in await get_task_history(db_session, task_id)
+    ]

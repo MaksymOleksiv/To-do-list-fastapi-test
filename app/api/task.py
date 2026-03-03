@@ -8,8 +8,9 @@ from app.services.task import (
     create_new_task,
     update_existing_task,
     delete_existing_task,
+    get_task_history_service,
 )
-from app.schemas.task import TaskResponse, TaskCreate, TaskUpdate
+from app.schemas.task import TaskResponse, TaskCreate, TaskUpdate, TaskHistoryResponse
 from app.core.db import get_db
 from app.core.limiter import limiter
 
@@ -48,7 +49,9 @@ async def create_task(
 
 @router.put("/tasks/{task_id}", response_model=TaskResponse)
 @limiter.limit("5/minute")
-async def update_task(request: Request, task_id: int, task: TaskUpdate, db: db_session) -> TaskResponse:
+async def update_task(
+    request: Request, task_id: int, task: TaskUpdate, db: db_session
+) -> TaskResponse:
     return await update_existing_task(db, task_id, task)
 
 
@@ -57,3 +60,11 @@ async def update_task(request: Request, task_id: int, task: TaskUpdate, db: db_s
 async def delete_task(request: Request, task_id: int, db: db_session) -> None:
     await delete_existing_task(db, task_id)
     return None
+
+
+@router.get("/tasks/{task_id}/history", response_model=list[TaskHistoryResponse])
+@limiter.limit("5/minute")
+async def read_task_history(
+    request: Request, task_id: int, db: db_session
+) -> list[TaskHistoryResponse]:
+    return await get_task_history_service(db, task_id)

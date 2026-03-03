@@ -2,6 +2,7 @@ from typing import Sequence
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Task
+from app.models.task_history import TaskHistory
 from app.core.config import StatusEnum
 
 
@@ -57,4 +58,13 @@ async def delete_expired_tasks(db: AsyncSession) -> Sequence[Task]:
     )
     result = await db.execute(stmt)
     await db.commit()
+    return result.scalars().all()
+
+
+async def get_task_history(db: AsyncSession, task_id: int) -> Sequence[TaskHistory]:
+    result = await db.execute(
+        select(TaskHistory)
+        .where(TaskHistory.task_id == task_id)
+        .order_by(TaskHistory.changed_at.desc())
+    )
     return result.scalars().all()
